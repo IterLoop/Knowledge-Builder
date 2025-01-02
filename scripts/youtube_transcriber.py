@@ -92,22 +92,14 @@ def generate_transcripts(video_ids: List[str]) -> List[Dict[str, str]]:
 
     results = []
     for vid in video_ids:
-        video_data = {
-            "video_id": vid,
-            "title": meta_map.get(vid, {}).get("title", ""),
-            "channel": meta_map.get(vid, {}).get("channel", ""),
-            "publish_time": meta_map.get(vid, {}).get("publish_time", ""),
-            "transcript": ""
-        }
         try:
             transcript_data = YouTubeTranscriptApi.get_transcript(vid, languages=['en'])
             text = " ".join([item["text"] for item in transcript_data])
-            video_data["transcript"] = text
+            # Add video data to results
+            results.append({"video_id": vid, "transcript": text})
         except Exception as e:
             logger.error(f"Transcript unavailable for video {vid}: {e}")
-            video_data["transcript"] = f"Error: {str(e)}"
-        results.append(video_data)
-
+            results.append({"video_id": vid, "transcript": f"Error: {str(e)}"})
     return results
 
 def main():

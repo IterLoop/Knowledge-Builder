@@ -9,6 +9,11 @@ client = MongoClient(MONGO_DB_URI)
 db = client["knowledge_base"]
 collection = db["articles"]
 
+def purge_database():
+    result = collection.delete_many({})
+    logger.info(f"Purged {result.deleted_count} documents from the database.")
+
+
 def store_data(data: dict) -> None:
     if isinstance(data, dict):
         try:
