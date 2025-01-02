@@ -1,0 +1,1 @@
+def youtube_pipeline(queries: List[str], days_ago: int = 0, max_results: int = 5) -

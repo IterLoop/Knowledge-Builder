@@ -1,0 +1,1 @@
+def generate_transcripts(video_ids: List[str]) -, Union[str, list]]:
