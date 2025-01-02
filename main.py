@@ -1,5 +1,3 @@
-# main.py
-
 import logging
 import os
 from openai import OpenAI
@@ -18,18 +16,28 @@ logging.basicConfig(
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-def upload_to_assistant(assistant_id: str, file_path: str, purpose: str = "search"):
+TARGET_VECTOR_STORE_ID = "vs_1HzC2Y1Bd6kUKWkKbpPDCfZK"
+
+
+def upload_files_to_vector_store(vector_store_id: str, file_paths: list):
     """
-    Upload a file to the specified assistant. The 'purpose' can be "search", "fine-tune", etc.
+    Uploads multiple files to the specified existing vector store.
+    Waits (polls) until the file batch is completed.
     """
-    logging.info(f"Uploading '{file_path}' to assistant {assistant_id} with purpose={purpose}")
-    with open(file_path, "rb") as f:
-        response = client.beta.assistants.files.create(
-            assistant_id=assistant_id,
-            file=f,
-            purpose=purpose
-        )
-    return response
+    logging.info(f"Uploading {len(file_paths)} file(s) to vector store {vector_store_id}")
+    
+    try:
+        # Prepare the file streams for upload
+        with open(file_paths[0], "rb") as f:
+            # Use the appropriate method for uploading files
+            file_batch_response = client.beta.vector_stores.file_batches.upload(
+                vector_store_id=vector_store_id,
+                files=[f]
+            )
+        return file_batch_response
+    except Exception as e:
+        logging.error(f"Error uploading files: {e}")
+        return None
 
 def main():
     # 1) Scrape from your target URLs
@@ -40,24 +48,28 @@ def main():
     scraped_texts = data_pipeline(test_urls)
 
     # 2) Create local files for each piece of scraped text, then upload
+    filenames = []
     for i, content in enumerate(scraped_texts, start=1):
         if not content:
             continue
         filename = f"scraped_{i}.md"
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
+        filenames.append(filename)
 
-        # Upload to the "storage assistant"
-        resp = upload_to_assistant(ASST_FOR_STORAGE, filename, purpose="search")
-        logging.info(f"File {filename} -> ID: {resp.id}")
-        # Optionally delete the local file
-        os.remove(filename)
+    if filenames:
+        logging.info("Uploading scraped text files to the existing vector store...")
+        upload_files_to_vector_store(TARGET_VECTOR_STORE_ID, filenames)
+        # Optionally delete local files after uploading
+        for filename in filenames:
+            os.remove(filename)
 
     # 3) YouTube pipeline
     queries = ["Supply Chain AI", "Trends in supply chain management", "Industrial AI"]
     youtube_data = youtube_pipeline(queries, days_ago=30, max_results=3, min_views=500)
+    
+    youtube_files = []
     for idx, vid_meta in enumerate(youtube_data, start=1):
-        # Build a .txt or .md file with metadata + transcript
         filename = f"youtube_{idx}.md"
         with open(filename, "w", encoding="utf-8") as f:
             f.write(f"# Title: {vid_meta['title']}\n")
@@ -65,21 +77,23 @@ def main():
             f.write(f"Published: {vid_meta['publish_time']}\n\n")
             f.write("Transcript:\n")
             f.write(vid_meta['transcript'])
+        youtube_files.append(filename)
 
-        # Upload to "storage assistant"
-        resp = upload_to_assistant(ASST_FOR_STORAGE, filename, purpose="search")
-        logging.info(f"YouTube file {filename} -> ID: {resp.id}")
-        os.remove(filename)
+    if youtube_files:
+        logging.info("Uploading YouTube transcript files to the existing vector store...")
+        file_batch_response = upload_files_to_vector_store(TARGET_VECTOR_STORE_ID, youtube_files)
+        # For debugging, you can inspect the returned object:
+        logging.info(f"File batch status: {file_batch_response.status}")
+        logging.info(f"File batch counts: {file_batch_response.file_counts}")
 
-    # 4) After scraping + uploading everything, use the "writing assistant" to generate an article.
-    #    We can create a "Run" or call the new Beta Assistants approach. For simplicity, let's do:
+        # Clean up local files
+        for filename in youtube_files:
+            os.remove(filename)
+
+    # 4) Generate an article using the writing assistant.
     from openai import AssistantEventHandler
 
     logging.info("All scraping and uploading done. Now let's have the writing assistant produce an article.")
-
-    # Example: create a thread with a user prompt, then get a run
-    # The code below depends on the new Beta Assistants approach. 
-    # If you do not have these endpoints, adapt accordingly.
 
     thread = client.beta.threads.create(
         messages=[
@@ -89,9 +103,10 @@ def main():
             }
         ]
     )
-    # Now create a run with the writing assistant
+
     class MyEventHandler(AssistantEventHandler):
         def on_text_created(self, text) -> None:
+            # Streams partial text from the assistant
             print("\nassistant >", text, flush=True)
 
     with client.beta.threads.runs.stream(
