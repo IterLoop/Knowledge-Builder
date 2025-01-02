@@ -31,7 +31,7 @@ def summarize_text(texts: List[str]) -> Optional[str]:
             ]
         )
         summary = response["choices"][0]["message"]["content"]
-        logger.info("Received summary from GPT-4.")
+        logger.info("Received summary from GPT-4., ")
         return summary
     except Exception as e:
         logger.error(f"Failed to summarize: {e}")

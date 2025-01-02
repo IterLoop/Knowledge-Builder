@@ -21,23 +21,36 @@ TARGET_VECTOR_STORE_ID = "vs_1HzC2Y1Bd6kUKWkKbpPDCfZK"
 
 def upload_files_to_vector_store(vector_store_id: str, file_paths: list):
     """
-    Uploads multiple files to the specified existing vector store.
-    Waits (polls) until the file batch is completed.
+    Upload files to the vector store and poll until completion.
     """
     logging.info(f"Uploading {len(file_paths)} file(s) to vector store {vector_store_id}")
-    
     try:
-        # Prepare the file streams for upload
-        with open(file_paths[0], "rb") as f:
-            # Use the appropriate method for uploading files
-            file_batch_response = client.beta.vector_stores.file_batches.upload(
-                vector_store_id=vector_store_id,
-                files=[f]
-            )
-        return file_batch_response
+        file_streams = [open(path, "rb") for path in file_paths]
+        file_batch = client.beta.vector_stores.file_batches.upload_and_poll(
+            vector_store_id=vector_store_id,
+            files=file_streams
+        )
+        logging.info(f"File batch upload complete. Status: {file_batch.status}")
+        logging.info(f"File counts: {file_batch.file_counts}")
+        for file_stream in file_streams:
+            file_stream.close()
+        return file_batch
     except Exception as e:
         logging.error(f"Error uploading files: {e}")
         return None
+
+
+class MyEventHandler:
+    def __init__(self):
+        self.final_text = ""
+
+    def on_text_created(self, text):
+        print("\nassistant >", text, flush=True)
+        self.final_text += text
+
+    def on_done(self):
+        logging.info("Final assistant output:\n" + self.final_text)
+
 
 def main():
     # 1) Scrape from your target URLs
@@ -58,16 +71,14 @@ def main():
         filenames.append(filename)
 
     if filenames:
-        logging.info("Uploading scraped text files to the existing vector store...")
+        logging.info("Uploading scraped text files to the vector store...")
         upload_files_to_vector_store(TARGET_VECTOR_STORE_ID, filenames)
-        # Optionally delete local files after uploading
         for filename in filenames:
             os.remove(filename)
 
     # 3) YouTube pipeline
     queries = ["Supply Chain AI", "Trends in supply chain management", "Industrial AI"]
     youtube_data = youtube_pipeline(queries, days_ago=30, max_results=3, min_views=500)
-    
     youtube_files = []
     for idx, vid_meta in enumerate(youtube_data, start=1):
         filename = f"youtube_{idx}.md"
@@ -80,44 +91,23 @@ def main():
         youtube_files.append(filename)
 
     if youtube_files:
-        logging.info("Uploading YouTube transcript files to the existing vector store...")
-        file_batch_response = upload_files_to_vector_store(TARGET_VECTOR_STORE_ID, youtube_files)
-        # For debugging, you can inspect the returned object:
-        logging.info(f"File batch status: {file_batch_response.status}")
-        logging.info(f"File batch counts: {file_batch_response.file_counts}")
-
-        # Clean up local files
+        logging.info("Uploading YouTube transcript files to the vector store...")
+        upload_files_to_vector_store(TARGET_VECTOR_STORE_ID, youtube_files)
         for filename in youtube_files:
             os.remove(filename)
 
     # 4) Generate an article using the writing assistant.
-    from openai import AssistantEventHandler
-
-    logging.info("All scraping and uploading done. Now let's have the writing assistant produce an article.")
-
-    thread = client.beta.threads.create(
-        messages=[
-            {
-                "role": "user",
-                "content": "Please write a single paragraph about supply chain management trends in AI in the last 30 days, referencing the knowledge in your file storage."
-            }
-        ]
-    )
-
-    class MyEventHandler(AssistantEventHandler):
-        def on_text_created(self, text) -> None:
-            # Streams partial text from the assistant
-            print("\nassistant >", text, flush=True)
-
+    logging.info("All scraping and uploading done. Now generating an article...")
+    event_handler = MyEventHandler()
     with client.beta.threads.runs.stream(
-        thread_id=thread.id,
+      #  thread_id="thread_id_placeholder",  # Replace with actual thread ID
         assistant_id=ASST_FOR_WRITING,
         instructions="You are an AI writing assistant. Provide a concise, single-paragraph article based on the file storage for supply chain management AI trends in the last 30 days.",
-        event_handler=MyEventHandler(),
+        event_handler=event_handler,
     ) as stream:
         stream.until_done()
 
-    logging.info("Done with final article creation.")
+    logging.info("Article generation complete.")
 
 if __name__ == "__main__":
     main()
