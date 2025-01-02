@@ -1,0 +1,63 @@
+# Virtual Environment
+venv/
+venv1/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*$py.class
+
+# Environment and Secrets
+.env
+secrets/
+*.pem
+*.key
+*.cert
+config.ini
+credentials.json
+
+# Database
+*.db
+*.sqlite3
+*.sqlite
+
+# Docker
+.docker/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Test coverage
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Local development settings
+local_settings.py
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment Variables
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Batch files
+*.bat
