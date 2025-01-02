@@ -1,4 +1,3 @@
- 
 from abc import ABC, abstractmethod
 import pybreaker
 from loguru import logger
@@ -9,7 +8,7 @@ class BaseScraper(ABC):
             fail_max=5,
             reset_timeout=60
         )
-    
+
     @abstractmethod
     async def scrape(self, url: str) -> dict:
         pass
