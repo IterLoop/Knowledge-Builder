@@ -13,6 +13,7 @@ MONGO_DB_URI = os.getenv("MONGO_DB_URI", "mongodb://localhost:27017/")
 # Assistant IDs
 ASST_FOR_STORAGE = os.getenv("ASST_FOR_STORAGE", "default_storage_assistant_id")
 ASST_FOR_WRITING = os.getenv("ASST_FOR_WRITING", "default_writing_assistant_id")
+VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID", "your_vector_store_id")
 
 
 

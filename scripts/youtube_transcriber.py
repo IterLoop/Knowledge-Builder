@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 def youtube_search(
     queries: List[str],
     days_ago: int = 0,
-    max_results: int = 5,
-    min_views: int = 1000
+    max_results: int = 1,
+    min_views: int = 10
 ) -> List[str]:
     if not YOUTUBE_API_KEY or YOUTUBE_API_KEY == "YOUR_YOUTUBE_API_KEY":
         logger.error("YouTube API key is missing or invalid.")

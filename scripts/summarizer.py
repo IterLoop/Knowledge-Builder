@@ -1,7 +1,7 @@
 # scripts/summarizer.py
 import logging
 from pymongo import MongoClient
-from scripts.config import OPENAI_API_KEY, MONGO_DB_URI, ASST_FOR_STORAGE
+from scripts.config import OPENAI_API_KEY, MONGO_DB_URI, ASST_FOR_STORAGE, VECTOR_STORE_ID
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -11,9 +11,9 @@ client_db = MongoClient(MONGO_DB_URI)
 db = client_db["knowledge_base"]
 collection = db["articles"]
 
+
 # OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
-
 
 def purge_database():
     """
@@ -37,9 +37,21 @@ def update_processed_status(document_id, summary=None):
         updates["summary"] = summary
     collection.update_one({"_id": document_id}, {"$set": updates})
 
+def upload_to_vector_store(file_path):
+    """
+    Upload a file to the vector store and poll until completed.
+    """
+    with open(file_path, "rb") as file_stream:
+        file_batch = client.beta.vector_stores.file_batches.upload_and_poll(
+            vector_store_id=VECTOR_STORE_ID,
+            files=[file_stream]
+        )
+    logger.info(f"Uploaded file to vector store. Status: {file_batch.status}")
+    print(f"File counts: {file_batch.file_counts}")
+
 def summarize_and_upload():
     """
-    Summarize unprocessed content using the summarizer assistant.
+    Summarize unprocessed content using the summarizer assistant and upload summaries to the vector store.
     """
     unprocessed_data = get_unprocessed_data()
     if not unprocessed_data:
@@ -72,10 +84,24 @@ def summarize_and_upload():
             ) as stream:
                 stream.until_done()
 
-            logger.info("Summarization run completed.")
-            summary = "Generated summary from the assistant."  # Placeholder for actual response processing
+            # Step 4: Retrieve Summary
+            message = client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role="assistant",
+                content="Generate a summary based on the provided content."
+            )
+            summary = message.content
+            print(f"Summary for URL {url}: {summary}")
 
-            # Update database with the summary and mark as processed
+            # Step 5: Save Summary to File
+            file_name = f"summary_{url.split('/')[-1]}.txt"
+            with open(file_name, "w") as f:
+                f.write(summary)
+
+            # Step 6: Upload File to Vector Store
+            upload_to_vector_store(file_name)
+
+            # Step 7: Update Database
             update_processed_status(data["_id"], summary)
         except Exception as e:
             logger.error(f"Failed to summarize content for {url}: {e}")

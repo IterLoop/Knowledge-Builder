@@ -12,8 +12,8 @@ logging.basicConfig(
 def main():
     # Step 1: Scrape data
     test_urls = [
-        "https://hbr.org/2023/11/how-global-companies-use-ai-to-prevent-supply-chain-disruptions",
-        "https://www.ibm.com/think/topics/ai-supply-chain"
+        "https://research.aimultiple.com/supply-chain-ai/",
+        "https://throughput.world/blog/ai-in-supply-chain-and-logistics/"
     ]
     logging.info("Starting data scraping...")
     scraped_texts = data_pipeline(test_urls)
